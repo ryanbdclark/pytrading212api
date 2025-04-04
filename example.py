@@ -9,15 +9,16 @@ async def run():
     with open("login.json") as file:
         data = json.load(file)
     api = Trading212API(data["auth_token"])
+    
 
     data = await api.get_positions()
     positions : list[Position] = []
     for position in data:
         positions.append(Position(api=api, data=position))
         
-
+    
     for position in positions:
-        print(position.average_price)
+        print(position.percent_change)
 
     data = await api.get_account_metadata()
     

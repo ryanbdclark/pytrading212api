@@ -7,8 +7,8 @@ here = pathlib.Path(__file__).parent.resolve()
 long_description = (here / "README.md").read_text(encoding="utf-8")
 
 setup(
-    name="pytrading212pi",
-    version="2025.4.0",
+    name="pytrading212api",
+    version="2025.4.3",
     description="Trading 212 api wrapper",
     long_description=long_description,
     long_description_content_type="text/markdown",
