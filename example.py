@@ -20,7 +20,7 @@ async def run():
     for position in positions:
         print(position.percent_change)
 
-    data = await api.get_account_metadata()
+    #data = await api.get_account_metadata()
     
     print(data)
     
