@@ -8,7 +8,7 @@ long_description = (here / "README.md").read_text(encoding="utf-8")
 
 setup(
     name="pytrading212api",
-    version="2025.4.4",
+    version="2026.1.1",
     description="Trading 212 api wrapper",
     long_description=long_description,
     long_description_content_type="text/markdown",

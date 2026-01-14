@@ -78,15 +78,15 @@ class Position:
     @property
     def pie_quantity(self) -> int:
         return self._pie_quantity
-    
+
     @property
     def buy_value(self) -> float:
         return self._buy_value
-    
+
     @property
     def current_value(self) -> float:
         return self._current_value
-    
+
     @property
     def percent_change(self) -> float:
         return self._percent_change
@@ -98,14 +98,20 @@ class Position:
         self._current_price: float = data["currentPrice"]
         self._profit_loss: float = data["ppl"]
         self._foreign_exchange_profit_loss: float = data["fxPpl"]
-        self._initial_fill_date: datetime = datetime.fromisoformat(data["initialFillDate"])
+        self._initial_fill_date: datetime = datetime.fromisoformat(
+            data["initialFillDate"]
+        )
         self._frontend: str = data["frontend"]
         self._max_buy: float = data["maxBuy"]
         self._max_sell: float = data["maxSell"]
         self._pie_quantity: float = data["pieQuantity"]
         self._buy_value: float = self._average_price * self._quantity
         self._current_value: float = self._current_price * self._quantity
-        self._percent_change: float = round((self._profit_loss/self._buy_value)*100,2) if self._buy_value else 0.0
+        self._percent_change: float = (
+            round((self._profit_loss / self._buy_value) * 100, 2)
+            if self._buy_value
+            else 0.0
+        )
 
     async def update_data(
         self,

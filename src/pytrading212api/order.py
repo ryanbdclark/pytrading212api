@@ -94,8 +94,8 @@ class Order:
         self._status: str = data["status"]
         self._stop_price: float = data["stopPrice"]
         self._strategy: str = data["strategy"]
-        self._type: str = data['type']
-        self._value: float = data['value']
+        self._type: str = data["type"]
+        self._value: float = data["value"]
 
     async def update_data(
         self,

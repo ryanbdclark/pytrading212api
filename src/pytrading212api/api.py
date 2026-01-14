@@ -1,9 +1,12 @@
+import asyncio
 import logging
 from logging import Logger
 from typing import Optional
+import base64
 
 import aiohttp
 
+from .const import BASE_URL
 from .exceptions import (
     Trading212InvalidParameter,
     Trading212NotFound,
@@ -12,6 +15,7 @@ from .exceptions import (
     Trading212ScopeError,
     Trading212TimeOut,
     Trading212Error,
+    Trading212AttemptsExceeded,
 )
 
 logger: Logger = logging.getLogger(__package__)
@@ -36,11 +40,10 @@ class Trading212API:
         get the current data from the api and returns the json response given
     """
 
-    BASE_URL = "https://live.trading212.com/api/v0/"
-
     def __init__(
         self,
-        auth_token: str = None,
+        api_key: str = None,
+        api_secret: str = None,
         session: aiohttp.ClientSession = None,
     ) -> None:
         """
@@ -52,9 +55,14 @@ class Trading212API:
         session (aiohttp.ClientSession), optional:The aiohttp session is stored to be called against
         """
 
-        if not auth_token:
+        if not api_key or not api_secret:
             raise ValueError("auth_token is required")
 
+        authroisation = f"{api_key}:{api_secret}"
+
+        encoded_authorisation = base64.b64encode(authroisation.encode("utf-8")).decode(
+            "utf-8"
+        )
         self.session = session
 
         if self.session is None:
@@ -65,7 +73,7 @@ class Trading212API:
             "Accept-Encoding": "gzip, deflate, br",
             "Accept-Language": "en-GB,en;q=0.9,en-US;q=0.8",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.67",
-            "Authorization": auth_token,
+            "Authorization": f"Basic {encoded_authorisation}",
         }
 
     async def close(self) -> None:
@@ -113,18 +121,41 @@ class Trading212API:
             case 408:
                 raise Trading212TimeOut(error_text)
             case 429:
-                raise Trading212Limited(error_text)
+                raise Trading212Limited(
+                    int(response.headers.get("x-ratelimit-period", 5))
+                )
             case _:
                 raise Trading212Error(
                     f"Unexpected Error {response.status}: {error_text}"
                 )
 
-    async def _get(self, endpoint: str) -> dict:
+    async def _get(self, endpoint: str, retries: int = 3) -> dict:
         """Helper function for making GET requests."""
-        url = f"{self.BASE_URL}{endpoint}"
-        async with self.session.get(url, headers=self._headers) as response:
-            await self.check_response(response)
-            return await response.json()
+        url = f"{BASE_URL}{endpoint}"
+
+        for attempt in range(retries):
+            try:
+                async with self.session.get(
+                    url, headers=self._headers, timeout=aiohttp.ClientTimeout(total=30)
+                ) as response:
+                    await self.check_response(response)
+                    return await response.json()
+
+            except Trading212Limited as e:
+                if attempt == retries - 1:
+                    raise Trading212AttemptsExceeded(
+                        f"Requests still limited after {attempt + 1} attempts"
+                    )
+
+                logger.warning(
+                    "Rate limited. Retry %s/%s in %s seconds.",
+                    attempt + 1,
+                    retries,
+                    e.retry_after,
+                )
+                await asyncio.sleep(e.retry_after)
+
+        raise Trading212AttemptsExceeded("Rate limit exceeded")
 
     async def get_positions(self, ticker: Optional[str] = None) -> dict:
         """
@@ -134,7 +165,9 @@ class Trading212API:
         ------
         dict: Dictionary containing the response
         """
-        return await self._get(f"equity/portfolio/{ticker}" if ticker else "equity/portfolio")
+        return await self._get(
+            f"equity/portfolio/{ticker}" if ticker else "equity/portfolio"
+        )
 
     async def get_exchanges(self) -> dict:
         """
@@ -156,16 +189,6 @@ class Trading212API:
         """
         return await self._get("metadata/instruments")
 
-    async def get_pies(self, pie: Optional[int] = None) -> dict:
-        """
-        Method for calling the Trading212 API for returning pies
-
-        Returns
-        ------
-        dict: Dictionary containing the response
-        """
-        return await self._get(f"equity/pies/{pie}" if pie else "equity/pies")
-
     async def get_orders(self, order: Optional[int] = None) -> dict:
         """
         Method for calling the Trading212 API for returning equity orders
@@ -176,16 +199,6 @@ class Trading212API:
         """
         return await self._get(f"equity/orders/{order}" if order else "equity/orders")
 
-    async def get_cash(self) -> dict:
-        """
-        Method for calling the Trading212 API for returning account cash
-
-        Returns
-        ------
-        dict: Dictionary containing the response
-        """
-        return await self._get("account/cash")
-
     async def get_account_metadata(self) -> dict:
         """
         Method for calling the Trading212 API for returning account info
@@ -194,4 +207,4 @@ class Trading212API:
         ------
         dict: Dictionary containing the response
         """
-        return await self._get("equity/account/info")
+        return await self._get("equity/account/summary")
